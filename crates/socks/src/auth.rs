@@ -1,20 +1,21 @@
 use std::fmt::Display;
 
-use crate::SocksVersion;
+use crate::Version;
 
+/// handshake response after auth
 #[derive(Debug, Default, Clone, Copy)]
-pub(crate) struct AuthResponse {
-    pub(crate) version: SocksVersion,
+pub(crate) struct HandshakeResponse {
+    pub(crate) version: Version,
     pub(crate) method: AuthMethod,
 }
 
-impl AuthResponse {
+impl HandshakeResponse {
     pub(crate) fn to_bytes(self) -> [u8; 2] {
         [self.version as u8, self.method as u8]
     }
 }
 
-impl Display for AuthResponse {
+impl Display for HandshakeResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

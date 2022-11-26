@@ -11,7 +11,7 @@ use std::{
 };
 
 use futures::ready;
-use log::{debug, info};
+use log::info;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 #[derive(Debug)]
