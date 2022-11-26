@@ -1,6 +1,5 @@
 #![feature(allocator_api)]
 mod auth;
-mod client;
 mod server;
 mod socks5;
 
