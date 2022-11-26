@@ -16,10 +16,10 @@ impl SocksServer {
         })
     }
 
-    pub async fn serve(&mut self) {
+    pub async fn serve(&mut self) -> Result<()> {
         info!("Serving socks server");
         loop {
-            let (stream, client_addr) = self.listener.accept().await.unwrap();
+            let (stream, client_addr) = self.listener.accept().await?;
             info!("Accepted connection from {}", client_addr);
             tokio::spawn(async move {
                 let mut client = SocksClient::new(stream, SocksVersion::Socks5).await;
@@ -27,7 +27,6 @@ impl SocksServer {
                     Ok(_) => {}
                     Err(_) => {
                         error!("Failed to initialize client");
-
                         // shutdown
                         if let Err(e) = client.shutdown().await {
                             warn!("Failed to shutdown client: {}", e);
@@ -41,6 +40,7 @@ impl SocksServer {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum Reply {
     Succeeded = 0,
     GeneralFailure = 1,
@@ -70,23 +70,6 @@ pub struct ServerResponse {
 }
 
 impl ServerResponse {
-    pub fn new(
-        version: SocksVersion,
-        reply: Reply,
-        address_type: AddressType,
-        address: Vec<u8>,
-        port: u16,
-    ) -> Self {
-        Self {
-            version,
-            reply,
-            reserved: 0,
-            address_type,
-            address,
-            port,
-        }
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![0u8; 4];
         buf[0] = self.version as u8;

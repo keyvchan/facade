@@ -1,10 +1,14 @@
 use bincode::{DefaultOptions, Options};
 use log::{debug, info};
-use std::io::{Error, ErrorKind::InvalidData, Result};
+use std::{
+    fmt::Display,
+    io::{Error, ErrorKind::InvalidData, Result},
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use vmess::copy_bidirectional;
 
 use crate::{
     auth::AuthResponse,
@@ -19,13 +23,45 @@ pub struct SocksClient {
 }
 
 #[derive(Debug, Clone)]
+enum SocksAddress {
+    IPv4([u8; 4]),
+    Domain(String),
+    IPv6([u8; 16]),
+}
+
+impl Display for SocksAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IPv4(addr) => write!(f, "{}.{}.{}.{}", addr[0], addr[1], addr[2], addr[3]),
+            Self::Domain(domain) => write!(f, "{}", domain),
+            Self::IPv6(addr) => write!(
+                f,
+                "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ClientRequest {
     version: SocksVersion,
     command: SocksCommand,
     reserved: u8,
     address_type: AddressType,
-    address: String,
+    address: SocksAddress,
     port: u16,
+}
+
+impl Display for ClientRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ClientRequest {{ version: {:?}, command: {:?}, reserved: {}, address_type: {:?}, address: {}, port: {} }}",
+            self.version, self.command, self.reserved, self.address_type, self.address, self.port
+        )
+    }
 }
 
 impl ClientRequest {
@@ -33,8 +69,6 @@ impl ClientRequest {
         // we have the request
         let mut req_buf = [0u8; 4];
         stream.read_exact(&mut req_buf).await?;
-
-        debug!("Request: {:?}", req_buf);
 
         let version = SocksVersion::from(req_buf[0]);
 
@@ -49,15 +83,12 @@ impl ClientRequest {
             AddressType::Ipv4 => {
                 let mut buf = [0u8; 4];
                 stream.read_exact(&mut buf).await?;
-                format!("{}.{}.{}.{}", buf[0], buf[1], buf[2], buf[3])
+                SocksAddress::IPv4(buf)
             }
             AddressType::Ipv6 => {
                 let mut buf = [0u8; 16];
                 stream.read_exact(&mut buf).await?;
-                format!(
-                    "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-                    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]
-                )
+                SocksAddress::IPv6(buf)
             }
             AddressType::DomainName => {
                 let mut buf = [0u8; 1];
@@ -66,7 +97,7 @@ impl ClientRequest {
                 let mut buf = vec![0u8; len];
                 stream.read_exact(&mut buf).await?;
                 match String::from_utf8(buf) {
-                    Ok(s) => s,
+                    Ok(s) => SocksAddress::Domain(s),
                     Err(e) => {
                         return Err(Error::new(
                             InvalidData,
@@ -119,6 +150,8 @@ impl SocksClient {
                 return Err(Error::new(InvalidData, "Invalid version"));
             }
         };
+
+        // read the number of auth methods
         self.auth_nmethods = self.stream.read_u8().await?;
         match self.version {
             SocksVersion::Socks4 => {
@@ -141,7 +174,7 @@ impl SocksClient {
         }
         // the version default is 5
         let response = AuthResponse::default();
-        debug!("Sending response: {:?}", response.to_bytes());
+        debug!("Sending response: {}", response);
         self.stream.write_all(&response.to_bytes()).await?;
 
         Ok(())
@@ -151,16 +184,15 @@ impl SocksClient {
         info!("Handling request");
 
         let request = ClientRequest::from_stream(&mut self.stream).await?;
-        debug!("Request: {:?}", request);
+        debug!("Recvied Request: {}", request);
 
         // respond to the client
         match request.command {
             SocksCommand::Connect => {
                 let address = format!("{}:{}", request.address, request.port);
-                info!("Connecting to {:?}", address);
 
                 let mut target = TcpStream::connect(&address).await?;
-                info!("Connected to {:?}", address);
+                info!("Connected to {}", address);
 
                 let response = ServerResponse {
                     version: self.version,
@@ -172,7 +204,7 @@ impl SocksClient {
                 };
                 self.stream.write_all(&response.to_bytes()).await?;
 
-                match tokio::io::copy_bidirectional(&mut self.stream, &mut target).await {
+                match copy_bidirectional(&mut self.stream, &mut target).await {
                     Ok(_) => {
                         info!("Connection closed");
                     }
