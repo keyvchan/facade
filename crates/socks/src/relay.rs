@@ -180,20 +180,22 @@ where
     }
 }
 
-pub async fn copy_bidirectional<E, P>(
-    encrypted: &mut E,
-    plain: &mut P,
+pub async fn copy_bidirectional<A, B>(
+    a: &mut A,
+    b: &mut B,
+    a_buffer_size: usize,
+    b_buffer_size: usize,
 ) -> Result<(u64, u64), std::io::Error>
 where
-    E: AsyncRead + AsyncWrite + Unpin + ?Sized,
-    P: AsyncRead + AsyncWrite + Unpin + ?Sized,
+    A: AsyncRead + AsyncWrite + Unpin + ?Sized,
+    B: AsyncRead + AsyncWrite + Unpin + ?Sized,
 {
     info!("relay started");
     CopyBidirectional {
-        a: encrypted,
-        b: plain,
-        a_to_b: TransferState::Running(CopyBuffer::new(1 << 14)),
-        b_to_a: TransferState::Running(CopyBuffer::new(1 << 14)),
+        a,
+        b,
+        a_to_b: TransferState::Running(CopyBuffer::new(a_buffer_size)),
+        b_to_a: TransferState::Running(CopyBuffer::new(b_buffer_size)),
     }
     .await
 }

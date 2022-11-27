@@ -71,17 +71,18 @@ impl Socks5TcpHandler {
         let outbound = "vmess";
 
         let mut target = match outbound {
-            "DIRECT" => ProxyClientStream::Direct(TcpStream::connect(target.to_string()).await?),
+            "DIRECT" => ProxyClientStream::DIRECT(TcpStream::connect(target.to_string()).await?),
             "vmess" => ProxyClientStream::VMESS(VMESSStream::connect(target.to_string()).await?),
             _ => {
                 todo!()
             }
         };
+        let target_buffer_size = target.buffer_size();
         let response =
             TcpResponseHeader::new(Reply::Succeeded, Address::SocketAddr(target.local_addr()?));
         stream.write_all(&response.to_bytes()).await?;
 
-        match copy_bidirectional(stream, &mut target).await {
+        match copy_bidirectional(stream, &mut target, 1 << 14, target_buffer_size).await {
             Ok(_) => {
                 debug!("TCP connection closed");
             }

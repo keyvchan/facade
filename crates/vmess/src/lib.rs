@@ -7,6 +7,16 @@ pub struct ClientRequest {
     pub data: Vec<u8>,
 }
 
+impl ClientRequest {
+    pub fn new(auth: [u8; 16], command: Command, data: Vec<u8>) -> Self {
+        Self {
+            auth,
+            command,
+            data,
+        }
+    }
+}
+
 pub enum VMESSOptions {
     S = 0x01, // default
 
