@@ -180,33 +180,6 @@ where
     }
 }
 
-/// Copies data in both directions between `encrypted` stream and `plain` stream.
-///
-/// This function returns a future that will read from both streams,
-/// writing any data read to the opposing stream.
-/// This happens in both directions concurrently.
-///
-/// If an EOF is observed on one stream, [`shutdown()`] will be invoked on
-/// the other, and reading from that stream will stop. Copying of data in
-/// the other direction will continue.
-///
-/// The future will complete successfully once both directions of communication has been shut down.
-/// A direction is shut down when the reader reports EOF,
-/// at which point [`shutdown()`] is called on the corresponding writer. When finished,
-/// it will return a tuple of the number of bytes copied from encrypted to plain
-/// and the number of bytes copied from plain to encrypted, in that order.
-///
-/// [`shutdown()`]: tokio::io::AsyncWriteExt::shutdown
-///
-/// # Errors
-///
-/// The future will immediately return an error if any IO operation on `encrypted`
-/// or `plain` returns an error. Some data read from either stream may be lost (not
-/// written to the other stream) in this case.
-///
-/// # Return value
-///
-/// Returns a tuple of bytes copied `encrypted` to `plain` and bytes copied `plain` to `encrypted`.
 pub async fn copy_bidirectional<E, P>(
     encrypted: &mut E,
     plain: &mut P,

@@ -1,6 +1,4 @@
-mod relay;
-
-pub use relay::copy_bidirectional;
+pub mod stream;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClientRequest {

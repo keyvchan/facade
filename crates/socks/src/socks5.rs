@@ -4,14 +4,17 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
 };
 
+use common::proxy::AutoProxyClientStream;
 use log::{debug, trace};
 use tokio::{
-    io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use vmess::stream::VMESSStream;
 
 use crate::{
     auth::{AuthMethod, HandshakeResponse},
+    relay::copy_bidirectional,
     server::Reply,
     AddressType, Version,
 };
@@ -65,8 +68,19 @@ impl Socks5TcpHandler {
         stream: &mut TcpStream,
         target: Address,
     ) -> io::Result<()> {
-        let mut target = TcpStream::connect(target.to_string()).await?;
+        let outbound = "DIRECT";
 
+        let mut target = match outbound {
+            "DIRECT" => {
+                AutoProxyClientStream::Direct(TcpStream::connect(target.to_string()).await?)
+            }
+            "vmess" => {
+                AutoProxyClientStream::VMESS(VMESSStream::connect(target.to_string()).await?)
+            }
+            _ => {
+                todo!()
+            }
+        };
         let response =
             TcpResponseHeader::new(Reply::Succeeded, Address::SocketAddr(target.local_addr()?));
         stream.write_all(&response.to_bytes()).await?;
