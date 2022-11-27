@@ -7,28 +7,28 @@ use tokio::{
 };
 use vmess::stream::VMESSStream;
 
-pub enum AutoProxyClientStream {
+pub enum ProxyClientStream {
     Direct(TcpStream),
     VMESS(VMESSStream),
 }
-impl AutoProxyClientStream {
+impl ProxyClientStream {
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         match self {
-            AutoProxyClientStream::Direct(stream) => stream.local_addr(),
-            AutoProxyClientStream::VMESS(stream) => stream.local_addr(),
+            ProxyClientStream::Direct(stream) => stream.local_addr(),
+            ProxyClientStream::VMESS(stream) => stream.local_addr(),
         }
     }
 }
 
-impl AsyncWrite for AutoProxyClientStream {
+impl AsyncWrite for ProxyClientStream {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
         buf: &[u8],
     ) -> task::Poll<io::Result<usize>> {
         match self.get_mut() {
-            AutoProxyClientStream::Direct(stream) => Pin::new(stream).poll_write(cx, buf),
-            AutoProxyClientStream::VMESS(stream) => {
+            ProxyClientStream::Direct(stream) => Pin::new(stream).poll_write(cx, buf),
+            ProxyClientStream::VMESS(stream) => {
                 todo!()
             }
         }
@@ -36,8 +36,8 @@ impl AsyncWrite for AutoProxyClientStream {
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<io::Result<()>> {
         match self.get_mut() {
-            AutoProxyClientStream::Direct(stream) => Pin::new(stream).poll_flush(cx),
-            AutoProxyClientStream::VMESS(stream) => {
+            ProxyClientStream::Direct(stream) => Pin::new(stream).poll_flush(cx),
+            ProxyClientStream::VMESS(stream) => {
                 todo!()
             }
         }
@@ -48,23 +48,23 @@ impl AsyncWrite for AutoProxyClientStream {
         cx: &mut task::Context<'_>,
     ) -> task::Poll<io::Result<()>> {
         match self.get_mut() {
-            AutoProxyClientStream::Direct(stream) => Pin::new(stream).poll_shutdown(cx),
-            AutoProxyClientStream::VMESS(stream) => {
+            ProxyClientStream::Direct(stream) => Pin::new(stream).poll_shutdown(cx),
+            ProxyClientStream::VMESS(stream) => {
                 todo!()
             }
         }
     }
 }
 
-impl AsyncRead for AutoProxyClientStream {
+impl AsyncRead for ProxyClientStream {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
         match self.get_mut() {
-            AutoProxyClientStream::Direct(stream) => Pin::new(stream).poll_read(cx, buf),
-            AutoProxyClientStream::VMESS(stream) => {
+            ProxyClientStream::Direct(stream) => Pin::new(stream).poll_read(cx, buf),
+            ProxyClientStream::VMESS(stream) => {
                 todo!()
             }
         }

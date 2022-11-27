@@ -4,7 +4,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
 };
 
-use common::proxy::AutoProxyClientStream;
+use common::proxy::ProxyClientStream;
 use log::{debug, trace};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -68,15 +68,11 @@ impl Socks5TcpHandler {
         stream: &mut TcpStream,
         target: Address,
     ) -> io::Result<()> {
-        let outbound = "DIRECT";
+        let outbound = "vmess";
 
         let mut target = match outbound {
-            "DIRECT" => {
-                AutoProxyClientStream::Direct(TcpStream::connect(target.to_string()).await?)
-            }
-            "vmess" => {
-                AutoProxyClientStream::VMESS(VMESSStream::connect(target.to_string()).await?)
-            }
+            "DIRECT" => ProxyClientStream::Direct(TcpStream::connect(target.to_string()).await?),
+            "vmess" => ProxyClientStream::VMESS(VMESSStream::connect(target.to_string()).await?),
             _ => {
                 todo!()
             }
@@ -244,8 +240,6 @@ impl TcpRequestHeader {
         }
 
         let command = Command::from(req_buf[1]);
-
-        let reserved = req_buf[2];
 
         let address_type = AddressType::from(req_buf[3]);
 
