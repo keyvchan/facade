@@ -72,7 +72,7 @@ impl Socks5TcpHandler {
 
         let mut target = match outbound {
             "DIRECT" => ProxyClientStream::DIRECT(TcpStream::connect(target.to_string()).await?),
-            "vmess" => ProxyClientStream::VMESS(VMESSStream::connect(target.to_string()).await?),
+            "vmess" => ProxyClientStream::VMESS(VMESSStream::connect("127.0.0.1:1081").await?),
             _ => {
                 todo!()
             }

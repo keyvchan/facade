@@ -44,9 +44,7 @@ impl AsyncWrite for ProxyClientStream {
     fn poll_flush(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<io::Result<()>> {
         match self.get_mut() {
             ProxyClientStream::DIRECT(direct_stream) => Pin::new(direct_stream).poll_flush(cx),
-            ProxyClientStream::VMESS(vmess_stream) => {
-                todo!()
-            }
+            ProxyClientStream::VMESS(vmess_stream) => Pin::new(vmess_stream).poll_flush(cx),
         }
     }
 
@@ -56,9 +54,7 @@ impl AsyncWrite for ProxyClientStream {
     ) -> task::Poll<io::Result<()>> {
         match self.get_mut() {
             ProxyClientStream::DIRECT(direct_stream) => Pin::new(direct_stream).poll_shutdown(cx),
-            ProxyClientStream::VMESS(vmess_stream) => {
-                todo!()
-            }
+            ProxyClientStream::VMESS(vmess_stream) => Pin::new(vmess_stream).poll_shutdown(cx),
         }
     }
 }
@@ -71,9 +67,7 @@ impl AsyncRead for ProxyClientStream {
     ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
         match self.get_mut() {
             ProxyClientStream::DIRECT(direct_stream) => Pin::new(direct_stream).poll_read(cx, buf),
-            ProxyClientStream::VMESS(vmess_stream) => {
-                todo!()
-            }
+            ProxyClientStream::VMESS(vmess_stream) => Pin::new(vmess_stream).poll_read(cx, buf),
         }
     }
 }
