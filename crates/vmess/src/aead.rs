@@ -3,50 +3,43 @@ use aes_gcm::{aead::Payload, Nonce};
 use chrono::Utc;
 use crc::{Crc, CRC_32_ISO_HDLC};
 use log::trace;
-use md5::Digest;
+use md5::{Digest, Md5};
 use rand::Rng;
-use sha2::Sha256;
-use uuid::uuid;
+use uuid::Uuid;
 
-/// KDF receives a bytes array and return a bytes array
-pub(crate) fn kdf(key: Vec<u8>, path: Vec<Vec<u8>>) -> Vec<u8> {
-    {
-        use hmac::{Hmac, Mac};
-        let mut mac = Hmac::<Sha256>::new_from_slice("VMessAEAD".as_bytes())
-            .expect("HMAC can take key of any size");
-
-        for p in path {
-            mac.update(&p);
-        }
-
-        mac.update(&key);
-        mac.finalize().into_bytes().to_vec()
-    }
-}
+use crate::crypto::kdf;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ID {
-    pub(crate) id: [u8; 16],
+    pub(crate) id: Uuid, // some what the id is a u8 array that length is 16
     pub(crate) cmd_key: [u8; 16],
 }
 
+const HASH_SEED: &str = "c48619fe-8f02-49e0-b9e9-edf763e17e21";
+
 impl ID {
-    pub fn cmd_key(&self) -> [u8; 16] {
-        self.cmd_key
-    }
+    /// Generate a new ID for given user id
+    /// the cmd key is compose by a md5 hash of two parts
+    /// 1. the id, which is the bytes representation of the uuid in u128
+    /// 2. a hard-coded uuid, which is a bytes array that convert from uuid string directly
+    pub fn new(id: Uuid) -> Self {
+        let first_part = id.as_u128().to_be_bytes();
+        trace!("first_part: {:?}", first_part);
 
-    pub fn new(id: [u8; 16]) -> Self {
+        let second_part = HASH_SEED.as_bytes();
+
+        trace!("second part: {:?}", second_part);
         // we need a cmdkey
-        let mut md5_hasher = md5::Md5::new();
-        md5_hasher.update(id);
-        md5_hasher.update(uuid!("c48619fe-8f02-49e0-b9e9-edf763e17e21"));
-        let cmd_key: [u8; 16] = md5_hasher
-            .finalize()
-            .to_vec()
-            .try_into()
-            .expect("digest length is 16");
+        let mut md5_hasher = Md5::new();
+        md5_hasher.update(first_part.as_slice());
+        md5_hasher.update(second_part);
+        let cmd_key = md5_hasher.finalize();
+        trace!("cmd_key: {:?}", cmd_key);
 
-        Self { id, cmd_key }
+        Self {
+            id,
+            cmd_key: cmd_key.to_vec().try_into().unwrap(),
+        }
     }
 }
 
@@ -58,12 +51,14 @@ pub(crate) struct EAuID {
 }
 
 impl EAuID {
+    /// Generate a new EAuID
     pub fn new(timestamp: Option<u64>, random: Option<[u8; 4]>) -> Self {
         // check if the timestamp is valid
         let timestamp = match timestamp {
             Some(t) => t,
             None => Utc::now().timestamp() as u64,
         };
+        trace!("timestamp: {}", timestamp);
 
         // check random
         let random = match random {
@@ -71,14 +66,18 @@ impl EAuID {
             None => rand::thread_rng().gen(),
         };
         let calculate_buffer = [timestamp.to_be_bytes().as_slice(), random.as_slice()].concat();
+        trace!("calculate_buffer: {:?}", calculate_buffer);
 
         // calculate crc32
-        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC)
+            .checksum(calculate_buffer.as_slice())
+            .to_be_bytes();
+        trace!("crc: {:?}", crc);
 
         EAuID {
             timestamp,
             random,
-            crc: crc.checksum(&calculate_buffer).to_be_bytes(),
+            crc,
         }
     }
 
@@ -96,7 +95,15 @@ impl EAuID {
     pub fn encrypt(&self, key: &[u8; 16]) -> [u8; 16] {
         // key should add salt
         let key = kdf(key.to_vec(), vec![b"AES Auth ID Encryption".to_vec()]);
-        trace!("key: {:?}", key);
+        trace!("key after kdf: {:?}", key);
+        assert_eq!(
+            key,
+            vec![
+                130, 13, 246, 219, 49, 125, 34, 40, 145, 67, 196, 93, 14, 181, 70, 54, 205, 247,
+                114, 68, 46, 5, 244, 195, 165, 84, 229, 110, 123, 39, 141, 58
+            ],
+            "key is not correct"
+        );
         let key: [u8; 16] = key.as_slice()[..16].try_into().expect("length is 16");
 
         let cipher = <aes::Aes128 as aes_gcm::KeyInit>::new((&key).into());
@@ -122,6 +129,7 @@ impl AEADHeader {
     pub fn seal(&self, id: ID, data: &[u8]) -> Vec<u8> {
         let key = id.cmd_key;
         let au_id = self.au_id.encrypt(&key);
+        trace!("au_id: {:?}", au_id);
 
         let nonce: [u8; 8] = rand::thread_rng().gen();
         let mut aead_payload_length_serialize_buffer = Vec::new();

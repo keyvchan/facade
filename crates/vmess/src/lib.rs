@@ -1,4 +1,5 @@
 pub mod aead;
+pub mod crypto;
 pub mod protocol;
 pub mod stream;
 

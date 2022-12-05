@@ -121,9 +121,10 @@ impl AsyncWrite for VMESSStream {
         header_buffer.push(hash.len() as u8);
         header_buffer.extend_from_slice(&hash);
 
-        let uuid = uuid!("c48619fe-8f02-49e0-b9e9-edf763e17e21");
-        let id = ID::new(uuid.into_bytes());
+        let uuid = uuid!("231c2fc0-f8c4-4248-b098-21f0dd78c810");
+        let id = ID::new(uuid);
         let aead_header = AEADHeader::new();
+        trace!("aead_header: {:?}", aead_header);
 
         let mut vmess_out = aead_header.seal(id, &header_buffer);
         vmess_out.extend_from_slice(buf);
