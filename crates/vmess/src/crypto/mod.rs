@@ -1,6 +1,8 @@
+use dyn_clone::DynClone;
 use sha2::{Digest, Sha256};
+use std::iter::Iterator;
 
-trait Hash {
+trait Hash: DynClone {
     fn write(&mut self, data: Vec<u8>);
     fn sum(&mut self, i: Option<Vec<u8>>) -> Vec<u8>;
     fn reset(&mut self);
@@ -8,6 +10,7 @@ trait Hash {
     fn block_size(&self) -> usize;
 }
 
+#[derive(Clone)]
 struct Hmac {
     opad: Vec<u8>,
     ipad: Vec<u8>,
@@ -26,9 +29,11 @@ impl Hash for Hmac {
             Some(i) => (i.len(), i),
             None => (0, vec![].to_vec()),
         };
+        let input = self.inner.sum(Some(input));
         self.outer.reset();
         self.outer.write(self.opad.clone());
 
+        self.outer.write(input[orig_len..].to_vec());
         self.outer.sum(Some(input[0..orig_len].to_vec()))
     }
 
@@ -48,10 +53,13 @@ impl Hash for Hmac {
     }
 }
 
+dyn_clone::clone_trait_object!(Hash);
+
 impl Hmac {
-    fn new(hasher: fn() -> Box<dyn Hash>, mut key: Vec<u8>) -> Box<dyn Hash> {
-        let mut outer = hasher();
-        let mut inner = hasher();
+    fn new_hasher(hasher: Box<dyn Hash>, mut key: Vec<u8>) -> Box<dyn Hash> {
+        // new hash
+        let mut outer = hasher.clone();
+        let mut inner = hasher.clone();
 
         let block_size = inner.block_size();
         let mut ipad = vec![0; block_size];
@@ -62,13 +70,14 @@ impl Hmac {
         }
 
         ipad[0..key.len()].copy_from_slice(key.as_slice());
-        (0..key.len()).for_each(|i| {
+        (0..ipad.len()).for_each(|i| {
             ipad[i] ^= 0x36;
         });
         opad[0..key.len()].copy_from_slice(key.as_slice());
-        (0..key.len()).for_each(|i| {
+        (0..opad.len()).for_each(|i| {
             opad[i] ^= 0x5c;
         });
+
         inner.write(ipad.clone());
 
         Box::new(Hmac {
@@ -80,6 +89,7 @@ impl Hmac {
     }
 }
 
+#[derive(Clone)]
 struct Sha256Hasher {
     hasher: Sha256,
 }
@@ -122,9 +132,17 @@ fn sha256() -> Box<dyn Hash> {
     Box::new(Sha256Hasher::new())
 }
 
-pub fn kdf(key: Vec<u8>, path: Vec<Vec<u8>>) -> Vec<u8> {
-    let mut mac = Hmac::new(sha256, "VMess AEAD KDF".as_bytes().to_vec());
-    let final_vec = mac.sum(None);
-    println!("{final_vec:?}");
-    final_vec
+pub(crate) fn kdf(key: &[u8], path: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut mac1 = Hmac::new_hasher(sha256(), "VMess AEAD KDF".as_bytes().to_vec());
+
+    // feed the calculated mac1 to a new hasher, in reverse order
+
+    for x in path.iter().rev() {
+        let mac2 = Hmac::new_hasher(mac1, x.to_vec());
+        mac1 = mac2;
+    }
+
+    mac1.write(key.to_vec());
+
+    mac1.sum(None)
 }

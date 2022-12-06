@@ -94,7 +94,7 @@ impl EAuID {
 
     pub fn encrypt(&self, key: &[u8; 16]) -> [u8; 16] {
         // key should add salt
-        let key = kdf(key.to_vec(), vec![b"AES Auth ID Encryption".to_vec()]);
+        let key = kdf(key.as_ref(), vec![b"AES Auth ID Encryption".to_vec()]);
         trace!("key after kdf: {:?}", key);
         assert_eq!(
             key,
@@ -145,7 +145,7 @@ impl AEADHeader {
         {
             use aes_gcm::{aead::Aead, KeyInit};
             let payload_header_length_aead_key = &kdf(
-                key.to_vec(),
+                key.as_ref(),
                 vec![
                     b"VMess Header AEAD Key_Length".to_vec(),
                     au_id.to_vec(),
@@ -154,7 +154,7 @@ impl AEADHeader {
             )[..16];
 
             let payload_header_length_aead_nonce = &kdf(
-                key.to_vec(),
+                key.as_ref(),
                 vec![
                     b"VMess Header AEAD Nonce_Length".to_vec(),
                     au_id.to_vec(),
@@ -179,7 +179,7 @@ impl AEADHeader {
         {
             use aes_gcm::{aead::Aead, KeyInit};
             let payload_header_aead_key = &kdf(
-                key.to_vec(),
+                key.as_ref(),
                 vec![
                     b"VMess Header AEAD Key".to_vec(),
                     au_id.to_vec(),
@@ -188,7 +188,7 @@ impl AEADHeader {
             )[..16];
 
             let payload_header_aead_nonce = &kdf(
-                key.to_vec(),
+                key.as_ref(),
                 vec![
                     b"VMess Header AEAD Nonce".to_vec(),
                     au_id.to_vec(),
