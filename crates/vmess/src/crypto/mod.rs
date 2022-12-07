@@ -156,7 +156,7 @@ pub(crate) fn kdf(key: &[u8], path: Vec<Vec<u8>>) -> Vec<u8> {
         "VMess AEAD KDF".as_bytes().to_vec(),
     );
 
-    for x in path.iter().rev() {
+    for x in path.iter() {
         // feed the calculated mac1 to a new hasher, in reverse order
         let new_mac = Hmac::new_hasher(mac, x.to_vec());
         mac = new_mac;

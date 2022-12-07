@@ -140,7 +140,7 @@ impl AEADHeader {
             .extend_from_slice(&header_payload_data_len.to_be_bytes());
 
         let aead_payload_length_serialized_byte = aead_payload_length_serialize_buffer;
-        let mut payload_header_length_aead_encrypted = Vec::new();
+        let payload_header_length_aead_encrypted;
 
         {
             use aes_gcm::{aead::Aead, KeyInit};
@@ -152,6 +152,10 @@ impl AEADHeader {
                     nonce.to_vec(),
                 ],
             )[..16];
+            trace!(
+                "payload_header_length_aead_key: {:?}",
+                payload_header_length_aead_key
+            );
 
             let payload_header_length_aead_nonce = &kdf(
                 key.as_ref(),
@@ -161,6 +165,10 @@ impl AEADHeader {
                     nonce.to_vec(),
                 ],
             )[..12];
+            trace!(
+                "payload_header_length_aead_nonce: {:?}",
+                payload_header_length_aead_nonce
+            );
 
             let payload_header_aead =
                 aes_gcm::Aes128Gcm::new(payload_header_length_aead_key.into());
@@ -172,9 +180,13 @@ impl AEADHeader {
             payload_header_length_aead_encrypted = payload_header_aead
                 .encrypt(Nonce::from_slice(payload_header_length_aead_nonce), payload)
                 .expect("encryption failure!");
+            trace!(
+                "payload_header_length_aead_encrypted: {:?}",
+                payload_header_length_aead_encrypted
+            );
         }
 
-        let mut payload_header_aead_encrypted = Vec::new();
+        let payload_header_aead_encrypted;
 
         {
             use aes_gcm::{aead::Aead, KeyInit};

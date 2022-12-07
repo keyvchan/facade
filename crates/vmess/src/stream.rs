@@ -128,8 +128,7 @@ impl AsyncWrite for VMESSStream {
 
         let mut vmess_out = aead_header.seal(id, &header_buffer);
         vmess_out.extend_from_slice(buf);
-
-        // write vmess_out
+        trace!("vmess_out: {:?}", vmess_out.len());
 
         Pin::new(&mut self.get_mut().stream).poll_write(cx, &vmess_out)
     }
