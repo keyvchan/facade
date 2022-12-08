@@ -1,3 +1,5 @@
+pub(crate) mod fnv;
+
 use dyn_clone::DynClone;
 use sha2::{Digest, Sha256};
 use std::iter::Iterator;

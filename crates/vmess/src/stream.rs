@@ -1,11 +1,10 @@
 use std::fmt::Display;
-use std::hash::Hasher;
 use std::pin::Pin;
 use std::result::Result;
 use std::task;
 use std::{io, net::SocketAddr, task::Poll};
 
-use log::{info, trace};
+use log::info;
 use md5::Digest;
 use rand::Rng;
 use sha2::Sha256;
@@ -17,6 +16,7 @@ use tokio::{
 use uuid::uuid;
 
 use crate::aead::{AEADHeader, ID};
+use crate::crypto::fnv::fnv;
 use crate::protocol::{RequestCommand, RequestHeader, RequestOption, RequestSecurity, VERSION};
 
 #[derive(Debug, Default)]
@@ -75,7 +75,6 @@ impl AsyncWrite for VMESSStream {
         let mut rng = rand::thread_rng();
         rng.fill(&mut random[..]);
 
-        trace!("random: {:?}", random);
         let request_body_key: [u8; 16] = random[0..16]
             .to_vec()
             .try_into()
@@ -105,30 +104,29 @@ impl AsyncWrite for VMESSStream {
 
         // write address and port
 
-        // address is a 4 byte array
-        let address: [u8; 4] = [127, 0, 0, 1];
-        header_buffer.extend_from_slice(&address);
+        // NOTE: port first, then address
+        // write address family
         header_buffer.extend_from_slice(&443_u16.to_be_bytes());
+        header_buffer.push(1_u8);
+        // address is a 4 byte array
+        let address: [u8; 4] = [198, 18, 2, 124];
+        header_buffer.extend_from_slice(&address);
 
         // read padding
-        let mut random: [u8; 16] = [0; 16];
+        let mut random = [0; 16];
         rng.fill(&mut random);
         header_buffer.extend_from_slice(&random[0..padding_len as usize]);
 
-        let mut fnv = fnv::FnvHasher::default();
-        fnv.write(&header_buffer);
-        let hash = fnv.finish().to_be_bytes();
-        header_buffer.push(hash.len() as u8);
-        header_buffer.extend_from_slice(&hash);
+        // calculate fnv has
+        let fnv_hash = fnv(&header_buffer);
+        header_buffer.extend_from_slice(&fnv_hash.to_be_bytes());
 
         let uuid = uuid!("231c2fc0-f8c4-4248-b098-21f0dd78c810");
         let id = ID::new(uuid);
         let aead_header = AEADHeader::new();
-        trace!("aead_header: {:?}", aead_header);
 
         let mut vmess_out = aead_header.seal(id, &header_buffer);
         vmess_out.extend_from_slice(buf);
-        trace!("vmess_out: {:?}", vmess_out.len());
 
         Pin::new(&mut self.get_mut().stream).poll_write(cx, &vmess_out)
     }
