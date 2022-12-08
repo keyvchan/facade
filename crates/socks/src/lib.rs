@@ -1,24 +1,25 @@
 #![feature(allocator_api)]
 mod auth;
-mod client;
+mod relay;
 mod server;
+mod socks5;
 
 pub use server::SocksServer;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum SocksVersion {
+pub enum Version {
     Socks4 = 4,
     Socks5 = 5,
 }
 
-impl Default for SocksVersion {
+impl Default for Version {
     fn default() -> Self {
         Self::Socks5
     }
 }
 
-impl From<u8> for SocksVersion {
+impl From<u8> for Version {
     fn from(version: u8) -> Self {
         match version {
             4 => Self::Socks4,
@@ -54,11 +55,10 @@ impl From<u8> for SocksCommand {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[repr(u8)]
 pub enum AddressType {
-    Ipv4 = 1,
-    DomainName = 3,
-    Ipv6 = 4,
+    Ipv4 = 0x01,
+    DomainName = 0x03,
+    Ipv6 = 0x04,
 }
 
 impl Default for AddressType {

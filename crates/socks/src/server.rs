@@ -1,8 +1,12 @@
 use log::{error, info, warn};
-use std::io::Result;
-use tokio::net::TcpListener;
+use std::{
+    fmt::{Display, Formatter},
+    io::{self, ErrorKind, Result},
+    net::SocketAddr,
+};
+use tokio::net::{TcpListener, TcpStream};
 
-use crate::{client::SocksClient, AddressType, SocksVersion};
+use crate::socks5::Socks5TcpHandler;
 
 pub struct SocksServer {
     pub listener: TcpListener,
@@ -16,41 +20,62 @@ impl SocksServer {
         })
     }
 
-    pub async fn serve(&mut self) {
+    pub async fn serve(&mut self) -> Result<()> {
         info!("Serving socks server");
         loop {
-            let (stream, client_addr) = self.listener.accept().await.unwrap();
-            info!("Accepted connection from {}", client_addr);
+            let (stream, peer_addr) = self.listener.accept().await?;
+            info!("Accepted connection from {}", peer_addr);
             tokio::spawn(async move {
-                let mut client = SocksClient::new(stream, SocksVersion::Socks5).await;
-                match client.init().await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        error!("Failed to initialize client");
-
-                        // shutdown
-                        if let Err(e) = client.shutdown().await {
-                            warn!("Failed to shutdown client: {}", e);
-                        };
-                    }
+                if let Err(e) = SocksServer::handle_tcp_client(stream, peer_addr).await {
+                    error!("Error handling client: {}", e);
                 }
             });
+        }
+    }
+
+    pub async fn handle_tcp_client(stream: TcpStream, peer: SocketAddr) -> io::Result<()> {
+        let mut version_buf = [0u8; 1];
+        let n = stream.peek(&mut version_buf).await?;
+        if n == 0 {
+            return Err(io::Error::new(ErrorKind::UnexpectedEof, "EOF"));
+        }
+
+        match version_buf[0] {
+            0x04 => {
+                warn!("Socks4 is not supported");
+                Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    "Socks4 is not supported",
+                ))
+            }
+            0x05 => {
+                let mut handler = Socks5TcpHandler::new();
+                handler.handle_socks5_client(stream, peer).await
+            }
+            version => {
+                warn!("Unknown socks version: {}", version);
+                Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Unknown socks version: {}", version),
+                ))
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum Reply {
-    Succeeded = 0,
-    GeneralFailure = 1,
-    ConnectionNotAllowed = 2,
-    NetworkUnreachable = 3,
-    HostUnreachable = 4,
-    ConnectionRefused = 5,
-    TTLExpired = 6,
-    CommandNotSupported = 7,
-    AddressTypeNotSupported = 8,
+    Succeeded = 0x00,
+    GeneralFailure = 0x01,
+    ConnectionNotAllowed = 0x02,
+    NetworkUnreachable = 0x03,
+    HostUnreachable = 0x04,
+    ConnectionRefused = 0x05,
+    TTLExpired = 0x06,
+    CommandNotSupported = 0x07,
+    AddressTypeNotSupported = 0x08,
 }
 
 impl Default for Reply {
@@ -59,42 +84,18 @@ impl Default for Reply {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ServerResponse {
-    pub version: SocksVersion,
-    pub reply: Reply,
-    pub reserved: u8,
-    pub address_type: AddressType,
-    pub address: Vec<u8>,
-    pub port: u16,
-}
-
-impl ServerResponse {
-    pub fn new(
-        version: SocksVersion,
-        reply: Reply,
-        address_type: AddressType,
-        address: Vec<u8>,
-        port: u16,
-    ) -> Self {
-        Self {
-            version,
-            reply,
-            reserved: 0,
-            address_type,
-            address,
-            port,
+impl Display for Reply {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Succeeded => write!(f, "succeeded"),
+            Self::GeneralFailure => write!(f, "general failure"),
+            Self::ConnectionNotAllowed => write!(f, "connection not allowed"),
+            Self::NetworkUnreachable => write!(f, "network unreachable"),
+            Self::HostUnreachable => write!(f, "host unreachable"),
+            Self::ConnectionRefused => write!(f, "connection refused"),
+            Self::TTLExpired => write!(f, "ttl expired"),
+            Self::CommandNotSupported => write!(f, "command not supported"),
+            Self::AddressTypeNotSupported => write!(f, "address type not supported"),
         }
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![0u8; 4];
-        buf[0] = self.version as u8;
-        buf[1] = self.reply as u8;
-        buf[2] = self.reserved;
-        buf[3] = self.address_type as u8;
-        buf.extend(self.address.clone());
-        buf.extend(self.port.to_be_bytes().to_vec());
-        buf
     }
 }

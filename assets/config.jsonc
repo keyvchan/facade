@@ -1,0 +1,29 @@
+{
+  "outbound": "DIRECT", // default outbound
+  "local": [
+    {
+      "protocol": "socks5",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "auth": "noauth",
+      "outbound": "vmess-test" // override default outbound
+    },
+    {
+      "protocol": "http",
+      "address": "127.0.0.1",
+      "port": 1081,
+      "auth": "noauth"
+    }
+  ],
+  "remote": [
+    {
+      "tag": "vmess-test",
+      "protocol": "vmess",
+      "address": "127.0.0.1",
+      "port": 1081,
+      "uuid": "231c2fc0-f8c4-4248-b098-21f0dd78c810",
+      "network": "tcp",
+      "tls": false
+    }
+  ]
+}

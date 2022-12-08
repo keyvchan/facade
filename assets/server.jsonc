@@ -1,0 +1,27 @@
+{
+  "inbounds": [
+    {
+      "port": 1081,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          { "alterId": 32, "id": "231C2FC0-F8C4-4248-B098-21F0DD78C810" }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "zero",
+        "tcpSettings": {}
+      },
+      "tag": "in-0"
+    }
+  ],
+  "log": { "loglevel": "debug" },
+  "outbounds": [
+    { "protocol": "freedom", "settings": {}, "tag": "direct" },
+    { "protocol": "blackhole", "settings": {}, "tag": "blocked" }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs"
+  }
+}
