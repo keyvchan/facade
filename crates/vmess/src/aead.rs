@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::crypto::kdf;
 
 #[derive(Debug, Default, Clone, Copy)]
+#[allow(dead_code)]
 pub(crate) struct ID {
     pub(crate) id: Uuid, // some what the id is a u8 array that length is 16
     pub(crate) cmd_key: [u8; 16],

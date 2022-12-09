@@ -48,6 +48,7 @@ pub(crate) struct RequestHeader {
 }
 
 impl RequestHeader {
+    #[allow(dead_code)]
     fn encode(&self, buf: &[u8]) -> Vec<u8> {
         let mut v = Vec::with_capacity(32);
         v.push(self.version);

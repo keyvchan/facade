@@ -30,7 +30,7 @@ impl Socks5TcpHandler {
     pub async fn handle_socks5_client(
         &mut self,
         mut stream: TcpStream,
-        peer_addr: SocketAddr,
+        _peer_addr: SocketAddr,
     ) -> io::Result<()> {
         // 1. handshake
         let mut handshake_request = HandshakeRequest::new();
@@ -104,7 +104,7 @@ impl Socks5TcpHandler {
     pub async fn handle_auth(
         &mut self,
         stream: &mut TcpStream,
-        handshake_request: &HandshakeRequest,
+        _handshake_request: &HandshakeRequest,
     ) -> io::Result<()> {
         debug!("Handling auth");
         let handshake_response = HandshakeResponse {
@@ -174,7 +174,7 @@ impl From<u8> for Command {
             0x01 => Command::Connect,
             0x02 => Command::Bind,
             0x03 => Command::UdpAssociate,
-            _ => panic!("Invalid command: {}", b),
+            _ => panic!("Invalid command: {b}"),
         }
     }
 }
@@ -214,8 +214,8 @@ impl SocksAddress {
 impl Display for SocksAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.address {
-            NetworkAddress::SocketAddr(addr) => write!(f, "{}", addr),
-            NetworkAddress::DomainName(domain, port) => write!(f, "{}:{}", domain, port),
+            NetworkAddress::SocketAddr(addr) => write!(f, "{addr}"),
+            NetworkAddress::DomainName(domain, port) => write!(f, "{domain}:{port}"),
         }
     }
 }
