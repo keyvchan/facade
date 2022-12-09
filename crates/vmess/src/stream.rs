@@ -4,24 +4,26 @@ use std::result::Result;
 use std::task;
 use std::{io, net::SocketAddr, task::Poll};
 
-use log::info;
+use log::{info, trace};
 use md5::Digest;
-use rand::Rng;
+use rand::{Rng, RngCore};
 use sha2::Sha256;
 use tokio::io::{AsyncRead, ReadBuf};
 use tokio::{
     io::AsyncWrite,
     net::{TcpStream, ToSocketAddrs},
 };
+use types::net::NetworkAddress;
 use uuid::uuid;
 
 use crate::aead::{AEADHeader, ID};
 use crate::crypto::fnv::fnv;
 use crate::protocol::{RequestCommand, RequestHeader, RequestOption, RequestSecurity, VERSION};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[allow(dead_code)]
-pub struct Session {
+pub struct ClientSession {
+    address: NetworkAddress,
     request_body_key: [u8; 16],
     request_body_iv: [u8; 16],
     response_body_key: [u8; 16],
@@ -29,13 +31,36 @@ pub struct Session {
     response_header: u8,
 }
 
+impl ClientSession {
+    fn new(address: NetworkAddress) -> Self {
+        let mut rng = rand::thread_rng();
+        let mut request_body_key = [0u8; 16];
+        let mut request_body_iv = [0u8; 16];
+        let mut response_body_key = [0u8; 16];
+        let mut response_body_iv = [0u8; 16];
+        rng.fill_bytes(&mut request_body_key);
+        rng.fill_bytes(&mut request_body_iv);
+        rng.fill_bytes(&mut response_body_key);
+        rng.fill_bytes(&mut response_body_iv);
+
+        ClientSession {
+            address,
+            request_body_key,
+            request_body_iv,
+            response_body_key,
+            response_body_iv,
+            response_header: 0,
+        }
+    }
+}
+
 pub struct VMESSStream {
     pub stream: TcpStream,
-    pub session: Session,
+    pub session: ClientSession,
 }
 
 impl VMESSStream {
-    pub async fn connect<A>(addr: A) -> io::Result<VMESSStream>
+    pub async fn connect<A>(addr: A, address: NetworkAddress) -> io::Result<VMESSStream>
     where
         A: ToSocketAddrs + Display,
     {
@@ -43,7 +68,7 @@ impl VMESSStream {
         let stream = TcpStream::connect(addr).await?;
         Ok(VMESSStream {
             stream,
-            session: Session::default(),
+            session: ClientSession::new(address),
         })
     }
 
@@ -104,12 +129,18 @@ impl AsyncWrite for VMESSStream {
 
         // write address and port
 
+        let network_address = self.session.address.clone();
+
         // NOTE: port first, then address
         // write address family
-        header_buffer.extend_from_slice(&443_u16.to_be_bytes());
+        header_buffer.extend_from_slice(&network_address.port().to_be_bytes());
         header_buffer.push(1_u8);
         // address is a 4 byte array
-        let address: [u8; 4] = [198, 18, 2, 124];
+        trace!("address: {:?}", network_address.address());
+        let address: [u8; 4] = network_address
+            .address()
+            .try_into()
+            .expect("slice with incorrect length, should be 4 bytes for ipv4 address");
         header_buffer.extend_from_slice(&address);
 
         // read padding
