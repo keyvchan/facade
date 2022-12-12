@@ -242,7 +242,7 @@ impl TcpRequestHeader {
         if version != Version::Socks5 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Invalid version: {:?}", version),
+                format!("Invalid version: {version:?}"),
             ));
         }
 
@@ -286,7 +286,7 @@ impl TcpRequestHeader {
                     Err(e) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Invalid domain name: {}", e),
+                            format!("Invalid domain name: {e}"),
                         ))
                     }
                 };

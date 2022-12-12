@@ -24,7 +24,7 @@ impl From<u8> for Version {
         match version {
             4 => Self::Socks4,
             5 => Self::Socks5,
-            _ => panic!("Invalid version: {}", version),
+            _ => panic!("Invalid version: {version}"),
         }
     }
 }
@@ -49,7 +49,7 @@ impl From<u8> for SocksCommand {
             1 => Self::Connect,
             2 => Self::Bind,
             3 => Self::UdpAssociate,
-            _ => panic!("Invalid command: {}", command),
+            _ => panic!("Invalid command: {command}"),
         }
     }
 }
@@ -73,7 +73,7 @@ impl From<u8> for AddressType {
             1 => Self::Ipv4,
             3 => Self::DomainName,
             4 => Self::Ipv6,
-            _ => panic!("Invalid address type: {}", address_type),
+            _ => panic!("Invalid address type: {address_type}"),
         }
     }
 }

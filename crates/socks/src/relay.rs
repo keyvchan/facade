@@ -139,15 +139,20 @@ where
     loop {
         match state {
             TransferState::Running(buf) => {
+                println!("state change to : Running");
                 let count = ready!(buf.poll_copy(cx, r.as_mut(), w.as_mut()))?;
                 *state = TransferState::ShuttingDown(count);
             }
             TransferState::ShuttingDown(count) => {
+                println!("state change to : ShuttingDown");
                 ready!(w.as_mut().poll_shutdown(cx))?;
 
                 *state = TransferState::Done(*count);
             }
-            TransferState::Done(count) => return Poll::Ready(Ok(*count)),
+            TransferState::Done(count) => {
+                println!("state change to : Done");
+                return Poll::Ready(Ok(*count));
+            }
         }
     }
 }

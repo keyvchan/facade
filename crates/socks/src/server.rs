@@ -56,7 +56,7 @@ impl SocksServer {
                 warn!("Unknown socks version: {}", version);
                 Err(io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("Unknown socks version: {}", version),
+                    format!("Unknown socks version: {version}"),
                 ))
             }
         }

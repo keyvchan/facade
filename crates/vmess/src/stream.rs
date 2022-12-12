@@ -136,7 +136,6 @@ impl AsyncWrite for VMESSStream {
         header_buffer.extend_from_slice(&network_address.port().to_be_bytes());
         header_buffer.push(1_u8);
         // address is a 4 byte array
-        trace!("address: {:?}", network_address.address());
         let address: [u8; 4] = network_address
             .address()
             .try_into()
@@ -163,6 +162,7 @@ impl AsyncWrite for VMESSStream {
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        trace!("poll_flush");
         Poll::Ready(Err(io::Error::new(
             io::ErrorKind::Other,
             "VMESSStream::poll_flush not implemented",
@@ -170,6 +170,7 @@ impl AsyncWrite for VMESSStream {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        trace!("poll_shutdown");
         Poll::Ready(Err(io::Error::new(
             io::ErrorKind::Other,
             "VMESSStream::poll_shutdown not implemented",
@@ -183,6 +184,7 @@ impl AsyncRead for VMESSStream {
         cx: &mut task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> task::Poll<Result<(), io::Error>> {
+        info!("VMESSStream::poll_read");
         Pin::new(&mut self.get_mut().stream).poll_read(cx, buf)
     }
 }
