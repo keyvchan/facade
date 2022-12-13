@@ -1,12 +1,13 @@
 mod config;
 
-use tracing::{debug, Level};
+use tracing::debug;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subscriber = tracing_subscriber::fmt()
         .with_file(true)
-        .with_max_level(Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
         .with_line_number(true)
         .with_target(true)
         .finish();

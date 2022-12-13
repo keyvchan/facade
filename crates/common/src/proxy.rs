@@ -5,6 +5,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
 };
+use tracing::trace;
 use vmess::stream::VMESSStream;
 
 pub enum ProxyClientStream {
@@ -65,14 +66,14 @@ impl AsyncRead for ProxyClientStream {
         cx: &mut task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
-        println!("poll_read");
+        trace!("poll_read");
         match self.get_mut() {
             ProxyClientStream::DIRECT(direct_stream) => {
-                println!("poll_read direct: {buf:?}");
+                trace!("poll_read direct: {buf:?}");
                 Pin::new(direct_stream).poll_read(cx, buf)
             }
             ProxyClientStream::VMESS(vmess_stream) => {
-                println!("poll_read vmess: {buf:?}");
+                trace!("poll_read vmess: {buf:?}");
                 Pin::new(vmess_stream).poll_read(cx, buf)
             }
         }
