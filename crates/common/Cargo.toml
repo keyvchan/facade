@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.22.0", features = ["full"] }
+tracing = "0.1.37"
 vmess = { path = "../vmess" }

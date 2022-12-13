@@ -4,7 +4,6 @@ use std::result::Result;
 use std::task;
 use std::{io, net::SocketAddr, task::Poll};
 
-use log::{info, trace};
 use md5::Digest;
 use rand::{Rng, RngCore};
 use sha2::Sha256;
@@ -13,6 +12,7 @@ use tokio::{
     io::AsyncWrite,
     net::{TcpStream, ToSocketAddrs},
 };
+use tracing::{info, trace};
 use types::net::NetworkAddress;
 use uuid::uuid;
 

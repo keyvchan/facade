@@ -1,10 +1,10 @@
-use log::{error, info, warn};
 use std::{
     fmt::{Display, Formatter},
     io::{self, ErrorKind, Result},
     net::SocketAddr,
 };
 use tokio::net::{TcpListener, TcpStream};
+use tracing::{error, info, warn};
 
 use crate::socks5::Socks5TcpHandler;
 

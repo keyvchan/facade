@@ -11,8 +11,8 @@ use std::{
 };
 
 use futures::ready;
-use log::info;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::info;
 
 #[derive(Debug)]
 struct CopyBuffer {

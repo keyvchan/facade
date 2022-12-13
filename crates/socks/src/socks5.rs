@@ -5,11 +5,11 @@ use std::{
 };
 
 use common::proxy::ProxyClientStream;
-use log::{debug, trace};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use tracing::{debug, trace};
 use types::net::NetworkAddress;
 use vmess::stream::VMESSStream;
 

@@ -2,9 +2,9 @@ use aes::cipher::{generic_array::GenericArray, BlockEncrypt};
 use aes_gcm::{aead::Payload, Nonce};
 use chrono::Utc;
 use crc::{Crc, CRC_32_ISO_HDLC};
-use log::trace;
 use md5::{Digest, Md5};
 use rand::Rng;
+use tracing::trace;
 use uuid::Uuid;
 
 use crate::crypto::kdf;
