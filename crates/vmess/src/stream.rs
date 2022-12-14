@@ -7,7 +7,7 @@ use std::{io, net::SocketAddr, task::Poll};
 use md5::Digest;
 use rand::{Rng, RngCore};
 use sha2::Sha256;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::{
     io::AsyncWrite,
     net::{TcpStream, ToSocketAddrs},
@@ -184,7 +184,33 @@ impl AsyncRead for VMESSStream {
         cx: &mut task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> task::Poll<Result<(), io::Error>> {
-        info!("VMESSStream::poll_read");
-        Pin::new(&mut self.get_mut().stream).poll_read(cx, buf)
+        info!("VMESSStream::poll_read, {buf:?}");
+
+        let mut buffer = vec![0; 1 << 14];
+        let mut read_buf = ReadBuf::new(&mut buffer);
+
+        let mut stream = unsafe { self.get_unchecked_mut() };
+
+        println!("before poll_read");
+        let result = stream.stream.read(&mut buffer);
+        println!("after poll_read");
+        println!("returned");
+        // match result {
+        //     Poll::Ready(Ok(n)) => {
+        //         println!("read inside vmess stream, ready");
+        //         // print the buf
+        //         println!("buf: {:?}", read_buf.filled());
+        //         Poll::Ready(Ok(n))
+        //     }
+        //     Poll::Ready(Err(e)) => {
+        //         println!("read inside vmess stream, error");
+        //         Poll::Ready(Err(e))
+        //     }
+        //     Poll::Pending => {
+        //         println!("read inside vmess stream, pending");
+        //         Poll::Pending
+        //     }
+        // }
+        Poll::Ready(Ok(()))
     }
 }

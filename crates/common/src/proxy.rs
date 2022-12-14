@@ -73,7 +73,10 @@ impl AsyncRead for ProxyClientStream {
                 Pin::new(direct_stream).poll_read(cx, buf)
             }
             ProxyClientStream::VMESS(vmess_stream) => {
-                trace!("poll_read vmess: {buf:?}");
+                // read the buf
+
+                // decrypt the buf
+
                 Pin::new(vmess_stream).poll_read(cx, buf)
             }
         }
