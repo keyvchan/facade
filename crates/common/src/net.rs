@@ -12,8 +12,8 @@ pub enum ServerAddr {
 impl Display for ServerAddr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ServerAddr::SocketAddr(addr) => write!(f, "{}", addr),
-            ServerAddr::DomainName(domain, port) => write!(f, "{}:{}", domain, port),
+            ServerAddr::SocketAddr(addr) => write!(f, "{addr}"),
+            ServerAddr::DomainName(domain, port) => write!(f, "{domain}:{port}"),
         }
     }
 }

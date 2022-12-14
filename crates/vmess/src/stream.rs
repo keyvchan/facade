@@ -4,24 +4,26 @@ use std::result::Result;
 use std::task;
 use std::{io, net::SocketAddr, task::Poll};
 
-use log::info;
 use md5::Digest;
-use rand::Rng;
+use rand::{Rng, RngCore};
 use sha2::Sha256;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::{
     io::AsyncWrite,
     net::{TcpStream, ToSocketAddrs},
 };
+use tracing::{info, trace};
+use types::net::NetworkAddress;
 use uuid::uuid;
 
 use crate::aead::{AEADHeader, ID};
 use crate::crypto::fnv::fnv;
 use crate::protocol::{RequestCommand, RequestHeader, RequestOption, RequestSecurity, VERSION};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[allow(dead_code)]
-pub struct Session {
+pub struct ClientSession {
+    address: NetworkAddress,
     request_body_key: [u8; 16],
     request_body_iv: [u8; 16],
     response_body_key: [u8; 16],
@@ -29,13 +31,36 @@ pub struct Session {
     response_header: u8,
 }
 
+impl ClientSession {
+    fn new(address: NetworkAddress) -> Self {
+        let mut rng = rand::thread_rng();
+        let mut request_body_key = [0u8; 16];
+        let mut request_body_iv = [0u8; 16];
+        let mut response_body_key = [0u8; 16];
+        let mut response_body_iv = [0u8; 16];
+        rng.fill_bytes(&mut request_body_key);
+        rng.fill_bytes(&mut request_body_iv);
+        rng.fill_bytes(&mut response_body_key);
+        rng.fill_bytes(&mut response_body_iv);
+
+        ClientSession {
+            address,
+            request_body_key,
+            request_body_iv,
+            response_body_key,
+            response_body_iv,
+            response_header: 0,
+        }
+    }
+}
+
 pub struct VMESSStream {
     pub stream: TcpStream,
-    pub session: Session,
+    pub session: ClientSession,
 }
 
 impl VMESSStream {
-    pub async fn connect<A>(addr: A) -> io::Result<VMESSStream>
+    pub async fn connect<A>(addr: A, address: NetworkAddress) -> io::Result<VMESSStream>
     where
         A: ToSocketAddrs + Display,
     {
@@ -43,7 +68,7 @@ impl VMESSStream {
         let stream = TcpStream::connect(addr).await?;
         Ok(VMESSStream {
             stream,
-            session: Session::default(),
+            session: ClientSession::new(address),
         })
     }
 
@@ -104,12 +129,17 @@ impl AsyncWrite for VMESSStream {
 
         // write address and port
 
+        let network_address = self.session.address.clone();
+
         // NOTE: port first, then address
         // write address family
-        header_buffer.extend_from_slice(&443_u16.to_be_bytes());
+        header_buffer.extend_from_slice(&network_address.port().to_be_bytes());
         header_buffer.push(1_u8);
         // address is a 4 byte array
-        let address: [u8; 4] = [198, 18, 2, 124];
+        let address: [u8; 4] = network_address
+            .address()
+            .try_into()
+            .expect("slice with incorrect length, should be 4 bytes for ipv4 address");
         header_buffer.extend_from_slice(&address);
 
         // read padding
@@ -132,6 +162,7 @@ impl AsyncWrite for VMESSStream {
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        trace!("poll_flush");
         Poll::Ready(Err(io::Error::new(
             io::ErrorKind::Other,
             "VMESSStream::poll_flush not implemented",
@@ -139,6 +170,7 @@ impl AsyncWrite for VMESSStream {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        trace!("poll_shutdown");
         Poll::Ready(Err(io::Error::new(
             io::ErrorKind::Other,
             "VMESSStream::poll_shutdown not implemented",
@@ -152,6 +184,33 @@ impl AsyncRead for VMESSStream {
         cx: &mut task::Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> task::Poll<Result<(), io::Error>> {
-        Pin::new(&mut self.get_mut().stream).poll_read(cx, buf)
+        info!("VMESSStream::poll_read, {buf:?}");
+
+        let mut buffer = vec![0; 1 << 14];
+        let mut read_buf = ReadBuf::new(&mut buffer);
+
+        let mut stream = unsafe { self.get_unchecked_mut() };
+
+        println!("before poll_read");
+        let result = stream.stream.read(&mut buffer);
+        println!("after poll_read");
+        println!("returned");
+        // match result {
+        //     Poll::Ready(Ok(n)) => {
+        //         println!("read inside vmess stream, ready");
+        //         // print the buf
+        //         println!("buf: {:?}", read_buf.filled());
+        //         Poll::Ready(Ok(n))
+        //     }
+        //     Poll::Ready(Err(e)) => {
+        //         println!("read inside vmess stream, error");
+        //         Poll::Ready(Err(e))
+        //     }
+        //     Poll::Pending => {
+        //         println!("read inside vmess stream, pending");
+        //         Poll::Pending
+        //     }
+        // }
+        Poll::Ready(Ok(()))
     }
 }

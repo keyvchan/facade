@@ -5,11 +5,12 @@ use std::{
 };
 
 use common::proxy::ProxyClientStream;
-use log::{debug, trace};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use tracing::{debug, trace};
+use types::net::NetworkAddress;
 use vmess::stream::VMESSStream;
 
 use crate::{
@@ -29,7 +30,7 @@ impl Socks5TcpHandler {
     pub async fn handle_socks5_client(
         &mut self,
         mut stream: TcpStream,
-        peer_addr: SocketAddr,
+        _peer_addr: SocketAddr,
     ) -> io::Result<()> {
         // 1. handshake
         let mut handshake_request = HandshakeRequest::new();
@@ -66,20 +67,26 @@ impl Socks5TcpHandler {
     pub async fn handle_tcp_connect(
         &mut self,
         stream: &mut TcpStream,
-        target: Address,
+        target: SocksAddress,
     ) -> io::Result<()> {
         let outbound = "vmess";
 
         let mut target = match outbound {
             "DIRECT" => ProxyClientStream::DIRECT(TcpStream::connect(target.to_string()).await?),
-            "vmess" => ProxyClientStream::VMESS(VMESSStream::connect("127.0.0.1:1081").await?),
+            "vmess" => ProxyClientStream::VMESS(
+                VMESSStream::connect("127.0.0.1:1081", target.address).await?,
+            ),
             _ => {
                 todo!()
             }
         };
         let target_buffer_size = target.buffer_size();
-        let response =
-            TcpResponseHeader::new(Reply::Succeeded, Address::SocketAddr(target.local_addr()?));
+        let response = TcpResponseHeader::new(
+            Reply::Succeeded,
+            SocksAddress {
+                address: NetworkAddress::SocketAddr(target.local_addr()?),
+            },
+        );
         stream.write_all(&response.to_bytes()).await?;
 
         match copy_bidirectional(stream, &mut target, 1 << 14, target_buffer_size).await {
@@ -97,7 +104,7 @@ impl Socks5TcpHandler {
     pub async fn handle_auth(
         &mut self,
         stream: &mut TcpStream,
-        handshake_request: &HandshakeRequest,
+        _handshake_request: &HandshakeRequest,
     ) -> io::Result<()> {
         debug!("Handling auth");
         let handshake_response = HandshakeResponse {
@@ -167,22 +174,21 @@ impl From<u8> for Command {
             0x01 => Command::Connect,
             0x02 => Command::Bind,
             0x03 => Command::UdpAssociate,
-            _ => panic!("Invalid command: {}", b),
+            _ => panic!("Invalid command: {b}"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum Address {
-    SocketAddr(SocketAddr),
-    DomainName(String, u16),
+pub struct SocksAddress {
+    address: NetworkAddress,
 }
 
-impl Address {
+impl SocksAddress {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
-        match self {
-            Address::SocketAddr(addr) => match addr {
+        match &self.address {
+            NetworkAddress::SocketAddr(addr) => match addr {
                 SocketAddr::V4(addr) => {
                     buf.push(AddressType::Ipv4 as u8);
                     buf.extend_from_slice(&addr.ip().octets());
@@ -194,7 +200,7 @@ impl Address {
                     buf.extend_from_slice(&addr.port().to_be_bytes());
                 }
             },
-            Address::DomainName(domain, port) => {
+            NetworkAddress::DomainName(domain, port) => {
                 buf.push(AddressType::DomainName as u8);
                 buf.push(domain.len() as u8);
                 buf.extend_from_slice(domain.as_bytes());
@@ -205,11 +211,11 @@ impl Address {
     }
 }
 
-impl Display for Address {
+impl Display for SocksAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Address::SocketAddr(addr) => write!(f, "{}", addr),
-            Address::DomainName(domain, port) => write!(f, "{}:{}", domain, port),
+        match &self.address {
+            NetworkAddress::SocketAddr(addr) => write!(f, "{addr}"),
+            NetworkAddress::DomainName(domain, port) => write!(f, "{domain}:{port}"),
         }
     }
 }
@@ -217,7 +223,7 @@ impl Display for Address {
 #[derive(Debug, Clone)]
 pub struct TcpRequestHeader {
     command: Command,
-    address: Address,
+    address: SocksAddress,
 }
 
 impl Display for TcpRequestHeader {
@@ -236,7 +242,7 @@ impl TcpRequestHeader {
         if version != Version::Socks5 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Invalid version: {:?}", version),
+                format!("Invalid version: {version:?}"),
             ));
         }
 
@@ -252,14 +258,17 @@ impl TcpRequestHeader {
 
                 let port = stream.read_u16().await?;
 
-                Address::SocketAddr(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::from(buf), port)))
+                NetworkAddress::SocketAddr(SocketAddr::V4(SocketAddrV4::new(
+                    Ipv4Addr::from(buf),
+                    port,
+                )))
             }
             AddressType::Ipv6 => {
                 let mut buf = [0u8; 16];
                 stream.read_exact(&mut buf).await?;
 
                 let port = stream.read_u16().await?;
-                Address::SocketAddr(SocketAddr::V6(SocketAddrV6::new(
+                NetworkAddress::SocketAddr(SocketAddr::V6(SocketAddrV6::new(
                     Ipv6Addr::from(buf),
                     port,
                     0,
@@ -277,26 +286,29 @@ impl TcpRequestHeader {
                     Err(e) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Invalid domain name: {}", e),
+                            format!("Invalid domain name: {e}"),
                         ))
                     }
                 };
                 let port = stream.read_u16().await?;
-                Address::DomainName(domain, port)
+                NetworkAddress::DomainName(domain, port)
             }
         };
 
-        Ok(TcpRequestHeader { command, address })
+        Ok(TcpRequestHeader {
+            command,
+            address: SocksAddress { address },
+        })
     }
 }
 
 pub struct TcpResponseHeader {
     reply: Reply,
-    address: Address,
+    address: SocksAddress,
 }
 
 impl TcpResponseHeader {
-    pub fn new(reply: Reply, address: Address) -> Self {
+    pub fn new(reply: Reply, address: SocksAddress) -> Self {
         Self { reply, address }
     }
 

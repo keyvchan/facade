@@ -2,7 +2,6 @@ use aes::cipher::{generic_array::GenericArray, BlockEncrypt};
 use aes_gcm::{aead::Payload, Nonce};
 use chrono::Utc;
 use crc::{Crc, CRC_32_ISO_HDLC};
-use log::trace;
 use md5::{Digest, Md5};
 use rand::Rng;
 use uuid::Uuid;
@@ -10,6 +9,7 @@ use uuid::Uuid;
 use crate::crypto::kdf;
 
 #[derive(Debug, Default, Clone, Copy)]
+#[allow(dead_code)]
 pub(crate) struct ID {
     pub(crate) id: Uuid, // some what the id is a u8 array that length is 16
     pub(crate) cmd_key: [u8; 16],
@@ -24,17 +24,14 @@ impl ID {
     /// 2. a hard-coded uuid, which is a bytes array that convert from uuid string directly
     pub fn new(id: Uuid) -> Self {
         let first_part = id.as_u128().to_be_bytes();
-        trace!("first_part: {:?}", first_part);
 
         let second_part = HASH_SEED.as_bytes();
 
-        trace!("second part: {:?}", second_part);
         // we need a cmdkey
         let mut md5_hasher = Md5::new();
         md5_hasher.update(first_part.as_slice());
         md5_hasher.update(second_part);
         let cmd_key = md5_hasher.finalize();
-        trace!("cmd_key: {:?}", cmd_key);
 
         Self {
             id,
@@ -58,7 +55,6 @@ impl EAuID {
             Some(t) => t,
             None => Utc::now().timestamp() as u64,
         };
-        trace!("timestamp: {}", timestamp);
 
         // check random
         let random = match random {
@@ -66,13 +62,11 @@ impl EAuID {
             None => rand::thread_rng().gen(),
         };
         let calculate_buffer = [timestamp.to_be_bytes().as_slice(), random.as_slice()].concat();
-        trace!("calculate_buffer: {:?}", calculate_buffer);
 
         // calculate crc32
         let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC)
             .checksum(calculate_buffer.as_slice())
             .to_be_bytes();
-        trace!("crc: {:?}", crc);
 
         EAuID {
             timestamp,
@@ -95,7 +89,6 @@ impl EAuID {
     pub fn encrypt(&self, key: &[u8; 16]) -> [u8; 16] {
         // key should add salt
         let key = kdf(key.as_ref(), vec![b"AES Auth ID Encryption".to_vec()]);
-        trace!("key after kdf: {:?}", key);
         assert_eq!(
             key,
             vec![
@@ -129,7 +122,6 @@ impl AEADHeader {
     pub fn seal(&self, id: ID, data: &[u8]) -> Vec<u8> {
         let key = id.cmd_key;
         let au_id = self.au_id.encrypt(&key);
-        trace!("au_id: {:?}", au_id);
 
         let nonce: [u8; 8] = rand::thread_rng().gen();
         let mut aead_payload_length_serialize_buffer = Vec::new();
@@ -152,10 +144,6 @@ impl AEADHeader {
                     nonce.to_vec(),
                 ],
             )[..16];
-            trace!(
-                "payload_header_length_aead_key: {:?}",
-                payload_header_length_aead_key
-            );
 
             let payload_header_length_aead_nonce = &kdf(
                 key.as_ref(),
@@ -165,10 +153,6 @@ impl AEADHeader {
                     nonce.to_vec(),
                 ],
             )[..12];
-            trace!(
-                "payload_header_length_aead_nonce: {:?}",
-                payload_header_length_aead_nonce
-            );
 
             let payload_header_aead =
                 aes_gcm::Aes128Gcm::new(payload_header_length_aead_key.into());
@@ -180,10 +164,6 @@ impl AEADHeader {
             payload_header_length_aead_encrypted = payload_header_aead
                 .encrypt(Nonce::from_slice(payload_header_length_aead_nonce), payload)
                 .expect("encryption failure!");
-            trace!(
-                "payload_header_length_aead_encrypted: {:?}",
-                payload_header_length_aead_encrypted
-            );
         }
 
         let payload_header_aead_encrypted;

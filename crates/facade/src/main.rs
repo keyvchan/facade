@@ -1,10 +1,17 @@
 mod config;
 
-use log::debug;
+use tracing::debug;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    let subscriber = tracing_subscriber::fmt()
+        .with_file(true)
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_line_number(true)
+        .with_target(true)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     debug!("Logging works!");
 

@@ -1,10 +1,10 @@
-use log::{error, info, warn};
 use std::{
     fmt::{Display, Formatter},
     io::{self, ErrorKind, Result},
     net::SocketAddr,
 };
 use tokio::net::{TcpListener, TcpStream};
+use tracing::{error, info, warn};
 
 use crate::socks5::Socks5TcpHandler;
 
@@ -56,7 +56,7 @@ impl SocksServer {
                 warn!("Unknown socks version: {}", version);
                 Err(io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("Unknown socks version: {}", version),
+                    format!("Unknown socks version: {version}"),
                 ))
             }
         }

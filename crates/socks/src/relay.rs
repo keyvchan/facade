@@ -11,8 +11,8 @@ use std::{
 };
 
 use futures::ready;
-use log::info;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::{info, trace};
 
 #[derive(Debug)]
 struct CopyBuffer {
@@ -139,15 +139,20 @@ where
     loop {
         match state {
             TransferState::Running(buf) => {
+                trace!("state change to : Running");
                 let count = ready!(buf.poll_copy(cx, r.as_mut(), w.as_mut()))?;
                 *state = TransferState::ShuttingDown(count);
             }
             TransferState::ShuttingDown(count) => {
+                trace!("state change to : ShuttingDown");
                 ready!(w.as_mut().poll_shutdown(cx))?;
 
                 *state = TransferState::Done(*count);
             }
-            TransferState::Done(count) => return Poll::Ready(Ok(*count)),
+            TransferState::Done(count) => {
+                trace!("state change to : Done");
+                return Poll::Ready(Ok(*count));
+            }
         }
     }
 }

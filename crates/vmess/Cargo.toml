@@ -11,14 +11,11 @@ aes-gcm = "0.10.1"
 chrono = "0.4.23"
 crc = "3.0.0"
 dyn-clone = "1.0.9"
-fnv = "1.0.7"
-futures = "0.3.25"
-hkdf = "0.12.3"
-hmac = "0.12.1"
-kdf = "0.0.0"
-log = "0.4.17"
+tracing = "0.1.37"
 md-5 = "0.10.5"
 rand = "0.8.5"
 sha2 = "0.10.6"
 tokio = { version = "1.22.0", features = ["full"] }
 uuid = "1.2.2"
+
+types = { path = "../types" }
